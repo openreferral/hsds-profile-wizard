@@ -15,7 +15,6 @@ from compiletojsonschema.compiletojsonschema import CompileToJsonSchema
 
 from contextlib import suppress
 
-from datetime import date
 from datetime import datetime
 
 
