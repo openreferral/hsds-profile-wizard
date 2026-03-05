@@ -11,6 +11,20 @@ A Python-based CLI tool which makes it straightforward to create and manage your
 * Full control over Profile schema compilation: declare which of your profile schemas you want to compile, with sensible defaults if you don't need this much control
 * Cacheing: avoid Github rate-limiting by storing a local copy of HSDS Schemas in the `.hsds-profile-wizard` directory of your project.
 
+## Installation
+
+Installation is via `pip` or `pipx`:
+
+```bash
+# Install inside a virtual environment with pip
+python3 -m venv .ve
+source .ve/bin/activate
+pip install git+https://github.com/openreferral/hsds-profile-wizard@main
+
+# Install system-wide with pipx
+pipx install git+https://github.com/openreferral/hsds-profile-wizard@main
+```
+
 ## Usage
 
 ### Quick Start
