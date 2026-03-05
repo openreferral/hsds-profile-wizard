@@ -1,0 +1,31 @@
+[project]
+name = "hsds-profile-wizard"
+version = "0.0.1"
+authors = [
+  { name="Matt Marshall", email="matt.marshall@opendataservices.coop" },
+]
+description = "A CLI tool which makes it straightforward to create and manage your HSDS Profile."
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "BSD-3-Clause"
+license-files = ["LICENSE*"]
+
+dependencies = [
+  "click>=8.0.0",
+  "requests>=2.28.1",
+  "compiletojsonschema",
+  "json-merge-patch"
+]
+
+[project.urls]
+Homepage = "https://github.com/openreferral/hsds-profile-wizard"
+Issues = "https://github.com/openreferral/hsds-profile-wizard/issues"
+
+[project.scripts]
+hsds-profile-wizard = "hsds_profile_wizard.hsds_profile_wizard:cli"
+
+

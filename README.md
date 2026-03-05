@@ -9,7 +9,7 @@ A Python-based CLI tool which makes it straightforward to create and manage your
 * Handles `$id` values: your Profile schemas and their compiled variants will all have `$id` values set based on your Profile's base URL. This will also handle a potential upgrade to HSDS, so you don't need to manually override `$id` in every schema
 * No hidden compilation steps: you can patch HSDS schemas with the full assurance that the tool is not manually inserting any arrays or relationships
 * Full control over Profile schema compilation: declare which of your profile schemas you want to compile, with sensible defaults if you don't need this much control
-* Cacheing: avoid Github rate-limiting by storing a local copy of HSDS Schemas in the `.cache` directory.
+* Cacheing: avoid Github rate-limiting by storing a local copy of HSDS Schemas in the `.hsds-profile-wizard` directory of your project.
 
 ## Usage
 
