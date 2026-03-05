@@ -272,14 +272,26 @@ def use_cached_schemas(branch):
     try:
         cache_metadata = get_cache_metadata()
 
-        current_datetime = datetime.now()
-        cached_schemas_datetime = datetime.fromisoformat(cache_metadata[branch])
+        # If the branch isn't in the cache metadata, we can return early. This check might not be necessary because we've already checked for the branch's cache directory earlier, but it's worthwhile doing here to ensure that the metadata.json file is behaving properly.
+        if branch not in cache_metadata:
+            return False
 
-        # Only use the cache if it's less than a day old. There's probably better heuristics than this out there, but this seems like an inoffensive place to start.
+        try:
+            current_datetime = datetime.now()
+            cached_schemas_datetime = datetime.fromisoformat(cache_metadata[branch])
 
-        return True if (current_datetime - cached_schemas_datetime).days <= 1 else False
+            # Only use the cache if it's less than a day old. There's probably better heuristics than this out there, but this seems like an inoffensive place to start.
+            return (
+                True
+                if (current_datetime - cached_schemas_datetime).days <= 1
+                else False
+            )
+        except (ValueError, TypeError):
+            # Invalid date format in the metadata, so treat as an invalid cache and refresh it
+            return False
 
-    except:  # Exceptions likely mean that there's no cache metadata file, or key matching the branch string in the metadata file, so it's OK to say false not to use the cache here.
+    except (FileNotFoundError, PermissionError, OSError):
+        # These exceptions likely mean that there's no cache metadata file, or it's not usable for some reason. It's OK to say false not to use the cache here.
         return False
 
 
