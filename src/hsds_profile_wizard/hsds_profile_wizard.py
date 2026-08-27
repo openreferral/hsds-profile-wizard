@@ -404,6 +404,11 @@ def generate_profile_openapi_with_cleaned_refs(openapi_definition, profile_schem
     # Personal note: writing this function nearly made me cry. It's so horrible having to manage the ridiculous tree of the openapi.json file, and then realise how haphazard and opaque the design decisions were.
 
     for k in openapi_definition["paths"].keys():
+        # The "/" endpoint does not have any $ref values to replace and this becomes necessary after fixes to address changes in upstream HSDS
+        # See https://github.com/openreferral/hsds-profile-wizard/issues/2
+        if k == "/":
+            continue
+
         # $refs can exist for each method
         for method in ["get", "post"]:
             try:
@@ -439,11 +444,13 @@ def generate_profile_openapi_with_cleaned_refs(openapi_definition, profile_schem
                         "contents"
                         in openapi_definition["paths"][k][method]["responses"]["200"][
                             "content"
-                        ]["application/json"]["schema"]["properties"]
+                        ]["application/json"]["schema"]["allOf"][1]["properties"]
                     ):
                         ref_value = openapi_definition["paths"][k][method]["responses"][
                             "200"
-                        ]["content"]["application/json"]["schema"]["properties"][
+                        ]["content"]["application/json"]["schema"]["allOf"][1][
+                            "properties"
+                        ][
                             "contents"
                         ][
                             "items"
@@ -464,7 +471,9 @@ def generate_profile_openapi_with_cleaned_refs(openapi_definition, profile_schem
                         else:
                             openapi_definition["paths"][k][method]["responses"]["200"][
                                 "content"
-                            ]["application/json"]["schema"]["properties"]["contents"][
+                            ]["application/json"]["schema"]["allOf"][1]["properties"][
+                                "contents"
+                            ][
                                 "items"
                             ][
                                 "$ref"
