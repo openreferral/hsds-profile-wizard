@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 
 import os
-import sys
 import json
-import jsonref
 import click
 import requests
 import shutil
@@ -11,61 +9,9 @@ import json_merge_patch
 
 from pathlib import Path
 
-from compiletojsonschema.compiletojsonschema import CompileToJsonSchema
-
 from contextlib import suppress
 
 from datetime import datetime
-
-
-def get_default_list_of_schemas_to_compile():
-    """
-    Returns a list containing: ["service.json", "organization.json", "location.json", "service_at_location.json"]
-
-    This represents the "core objects" of HSDS, so should be a sensible default for a list of schemas to compile. See https://docs.openreferral.org/en/latest/hsds/schema_reference.html#core-objects
-
-    Returns:
-     * list: list of strings representing the schema names of the HSDS Core objects.
-    """
-
-    return [
-        "service.json",
-        "organization.json",
-        "location.json",
-        "service_at_location.json",
-    ]
-
-
-def get_list_of_schemas_to_compile(profile_metadata):
-    """
-    Retrieves a list of strings which match keys in a dict of schemas, indicating whether that schema should be compiled or not.
-
-    It does this via the following process:
-
-    * Checks for the presence of a "compile" property in the profile_metadata and that it is not null
-    * If present, it returns the list of schemas declared in profile_metadata["compile"], even if empty
-    * Else, it returns a list of: "service.json", "organization.json", "location.json", and "service_at_location.json".
-
-    Parameters:
-      * profile_metadata (dict): the metadata of the profile, usually read in from profile.json elsewhere
-
-    Returns:
-      * list: list of strings representing schema filenames to compile e.g. "service.json"
-    """
-
-    # In HSDS, the canonical schemas are compiled underneath the "schema/compiled" directory, and the openapi.json file uses the compiled schemas as the definitions of the return schemas for API endpoints. Profiles should also follow this pattern (although they have the ability to explicitly override it)
-    # Profiles also have the ability to declare new schemas and remove existing schemas, so we need to determine *which* of the patched Profile schemas we need to compile. We've got no guarantee that HSDS schemas still exist in the Profile (note: this is handled elsewhere), but it's possible that the Profile has added entirely new schemas that they'd like compiled for returning in the API.
-    # To account for these cases, we allow the Profile author to manually declare which of their Profile schemas they want to be compiled, via a property in their `profile.json` file.
-    # However, it may be that the Profile is only making small adjustments to the HSDS Schemas and else wants some sensible defaults. They might have deliberately omitted the "compile" property in the `profile.json` file.
-    # For these cases, we return a list of the "core objects" in HSDS, as it's relatively safe to assume these should be compiled.
-    # See: https://docs.openreferral.org/en/latest/hsds/schema_reference.html#core-objects
-
-    if "compile" in profile_metadata:
-        if profile_metadata["compile"] is not None:
-            return profile_metadata["compile"]
-    else:
-
-        return get_default_list_of_schemas_to_compile()
 
 
 def get_profile_metadata():
@@ -209,20 +155,14 @@ def write_dict_of_schemas_to_directory(schemas, directory):
 
 def cache_schemas(branch, schemas):
     """
-        Stores copies of the schemas in a local cache organised by branch and updates the cache metadata.json with the timestamp this branch was updated.
-    ault_list_of_schemas_to_compile()
-                "service.json",
-                "organization.json",
-                "location.json",
-                "service_at_location.json",
-            ]
+    Stores copies of the schemas in a local cache organised by branch and updates the cache metadata.json with the timestamp this branch was updated.
 
-        Parameters:
-            branch (str): the branch of the repo
-            schemas (dict): a dict of filenames=>schemas to write to the cache
+    Parameters:
+        branch (str): the branch of the repo
+        schemas (dict): a dict of filenames=>schemas to write to the cache
 
-        I/O:
-          * writes schemas to the cache directory via write_dict_of_schemas_to_directory()
+    I/O:
+      * writes schemas to the cache directory via write_dict_of_schemas_to_directory()
     """
 
     cache_dir_for_branch = get_cached_schema_dir_path_from_branch(branch)
@@ -398,8 +338,7 @@ def generate_profile_openapi_with_cleaned_refs(openapi_definition, profile_schem
       * dict: the openapi.json file
     """
     # The API paths defined in the openapi.json file currently all point to the HSDS Schema files as a value of their $ref keys, so these need updating to the Profile's urls.
-    # In some cases, these need updating to the "compiled" schema identifier, and in others just the base schema. There doesn't appear to be a specific reason for this named in any of the HSDS docs, so we just have to inspect the $ref and if it contains "compiled" then it should use the compiled schema.
-    # Further, we have to check whether the definition of the response is a page or not, because that will affect where the $ref key lives.
+    # We have to check whether the definition of the response is a page or not, because that will affect where the $ref key lives.
     # There is also a risk here that the profile author has removed a schema from the profile, but not updated the openapi.json file to remove endpoints matching this. In these cases, raise an error message telling the user to update openapi.json
     # Personal note: writing this function nearly made me cry. It's so horrible having to manage the ridiculous tree of the openapi.json file, and then realise how haphazard and opaque the design decisions were.
 
@@ -422,24 +361,18 @@ def generate_profile_openapi_with_cleaned_refs(openapi_definition, profile_schem
                         ref_value = openapi_definition["paths"][k][method]["responses"][
                             "200"
                         ]["content"]["application/json"]["schema"]["$ref"]
+
                         schema_base_name_from_ref_value = Path(ref_value).name
 
-                        if "compiled" in ref_value:
-                            openapi_definition["paths"][k][method]["responses"]["200"][
-                                "content"
-                            ]["application/json"]["schema"][
-                                "$ref"
-                            ] = generate_compiled_schema_id_from_schema_id(
-                                profile_schemas[schema_base_name_from_ref_value]["$id"]
-                            )
-                        else:
-                            openapi_definition["paths"][k][method]["responses"]["200"][
-                                "content"
-                            ]["application/json"]["schema"]["$ref"] = profile_schemas[
-                                schema_base_name_from_ref_value
-                            ][
-                                "$id"
-                            ]
+                        openapi_definition["paths"][k][method]["responses"]["200"][
+                            "content"
+                        ]["application/json"]["schema"]["$ref"] = profile_schemas[
+                            schema_base_name_from_ref_value
+                        ][
+                            "$id"
+                        ]
+
+                    # This branch executes if the path is returning paginated results
                     elif (
                         "contents"
                         in openapi_definition["paths"][k][method]["responses"]["200"][
@@ -458,30 +391,20 @@ def generate_profile_openapi_with_cleaned_refs(openapi_definition, profile_schem
                             "$ref"
                         ]
                         schema_base_name_from_ref_value = Path(ref_value).name
-                        if "compiled" in ref_value:
-                            openapi_definition["paths"][k][method]["responses"]["200"][
-                                "content"
-                            ]["application/json"]["schema"]["properties"]["contents"][
-                                "items"
-                            ][
-                                "$ref"
-                            ] = generate_compiled_schema_id_from_schema_id(
-                                profile_schemas[schema_base_name_from_ref_value]["$id"]
-                            )
-                        else:
-                            openapi_definition["paths"][k][method]["responses"]["200"][
-                                "content"
-                            ]["application/json"]["schema"]["allOf"][1]["properties"][
-                                "contents"
-                            ][
-                                "items"
-                            ][
-                                "$ref"
-                            ] = profile_schemas[
-                                schema_base_name_from_ref_value
-                            ][
-                                "$id"
-                            ]
+
+                        openapi_definition["paths"][k][method]["responses"]["200"][
+                            "content"
+                        ]["application/json"]["schema"]["allOf"][1]["properties"][
+                            "contents"
+                        ][
+                            "items"
+                        ][
+                            "$ref"
+                        ] = profile_schemas[
+                            schema_base_name_from_ref_value
+                        ][
+                            "$id"
+                        ]
 
             except KeyError as e:
                 # I don't like how this integrates click's printing framework tightly into the core logic of the program. I may revert this to use sys.stderr.write, or refactor it to raise the exception and push the error message to the I/O boundary of the program i.e. in the "generate" command.
@@ -586,65 +509,6 @@ def generate_profile_schemas(
     return profile_schemas
 
 
-def generate_compiled_schema_id_from_schema_id(schema_id):
-    """
-    Generates a compiled schema's $id value given the value of an existing $id
-
-    Currently, this amounts to replacing "schema" with "schema/compiled" between the head of the uri and the tail
-
-    Parameters:
-      * schema_id (str) the schema $id from which to generate the compiled schema id e.g. https://example.org/0.0.1/schema/example.json
-
-    Returns:
-      * str: the $id value of the compiled schema
-    """
-
-    return schema_id.replace("schema", "schema/compiled")
-
-
-def generate_compiled_schema(schema_name):
-    """
-    Generates a compiled (de-referenced) schema based on an input file name, and outputs it as a dict.
-
-    Parameters:
-      * schema_name (str): the name of the schema to read from the schema directory e.g. service.json
-
-    I/O:
-      * Reads a schema file from `schema/{schema_name}`, this is due to the CompileToJsonSchema library requiring a filepath. This will also result in it reading other schema files and performing HTTP requests based on any $ref values present in the source schema. See https://github.com/OpenDataServices/compile-to-json-schema.
-
-    Exceptions:
-      * FileNotFoundError: occurs if the compiler is given the path to a non-existant schemafile to compile. Most likely due to a schema being removed entirely from a Profile but not removing it from the list of schemas to compile in profile.json
-      * jsonref.JsonRefError: occurs if the compiler fails to resolve a $ref key inside a schema file it's compiling. Most likely due to a schema file being removed entirely from a Profile, but the Profile author neglecting to patch out $refs to it in other schemas.
-
-    Returns:
-      * dict: a dict representing the compiled schema
-    """
-
-    try:
-
-        compiler = CompileToJsonSchema(input_filename=f"schema/{schema_name}")
-        compiled_schema = compiler.get()
-
-        # The compiled schema currently has the $id of the original schema, so we need to modify it to play nicely with openapi.json and the directory structure of how HSDS schemas/profiles work
-
-        compiled_schema["$id"] = generate_compiled_schema_id_from_schema_id(
-            compiled_schema["$id"]
-        )
-
-        return compiled_schema
-    except FileNotFoundError:
-        # This is most likely to occur when the user has excluded one of the default HSDS Schemas from their Profile, but is still trying to use the default list of schemas to compile.
-        raise FileNotFoundError(
-            f"Error: could not generate compiled schema from {schema_name}. This usually occurs when you are trying to compile a schema which doesn't exist in your Profile. You should either re-add the schema to your Profile, or manually set which schemas to compile via profile.json"
-        )
-    except jsonref.JsonRefError as e:
-        # This is most likely to occur due to a schema being excluded from the Profile, but then being involved in a compilation step via a $ref in the schema being compiled now.
-        raise jsonref.JsonRefError(
-            f"Error while generating a compiled schema from /schema/{schema_name}. Could not resolve a $ref to {e.reference['$ref']} when compiling this schema. It's likely that you have removed {e.reference['$ref']} from your profile, so you should create /profile/{schema_name} to patch this schema and remove any references to {e.reference['$ref']} ",
-            e.reference,
-        )
-
-
 # ==================================
 # CLI
 # ==================================
@@ -692,7 +556,6 @@ def init(title, url, description, docs_url):
         "base_url": url,
         "openapi_url": get_openapi_url_from_base_url(url),
         "version": "0.0",
-        "compile": get_default_list_of_schemas_to_compile(),
     }
 
     profile_meta["description"] = "" if description is None else description
@@ -703,7 +566,7 @@ def init(title, url, description, docs_url):
         profile_file.write(json.dumps(profile_meta, indent=2))
 
     click.echo(
-        "✓ Created profile.json based on user input — edit this file to maintain your profile's metadata between versions and control how schemas compile"
+        "✓ Created profile.json based on user input — edit this file to maintain your profile's metadata between versions."
     )
 
     with suppress(FileExistsError):
@@ -747,7 +610,7 @@ def init(title, url, description, docs_url):
 )
 def generate(branch, url, version):
     """
-    Generates and compiles Profile Schemas based on HSDS Schemas and the Patches in the `profile` directory.
+    Generates Profile Schemas based on HSDS Schemas and the Patches in the `profile` directory.
     """
 
     if branch is None:
@@ -770,10 +633,6 @@ def generate(branch, url, version):
         version,
     )
 
-    # The compiletojsonschema library requires a file as input, so we need to write out the contents of profile_schemas now before compiling.
-    # This needs to be done anyway, but it's a little messy to have I/O in the middle of a chain of processing if we're not in a UNIX pipe imho.
-    # Unfortunately, this is easier than re-implementing the logic to compile a schema.
-
     # It's better to tidy up from previous runs, so remove the entire "schema" directory and rebuild it ready for writing
     with suppress(FileNotFoundError):
         shutil.rmtree("schema")
@@ -781,24 +640,6 @@ def generate(branch, url, version):
     os.mkdir("schema")
 
     write_dict_of_schemas_to_directory(profile_schemas, "schema")
-
-    names_of_schemas_to_compile = get_list_of_schemas_to_compile(profile_metadata)
-
-    try:
-
-        compiled_schemas = {}
-        for name in names_of_schemas_to_compile:
-            compiled_schemas[name] = generate_compiled_schema(name)
-
-        os.mkdir("schema/compiled")
-
-        write_dict_of_schemas_to_directory(compiled_schemas, "schema/compiled")
-    except FileNotFoundError as e:
-        click.echo(e, err=True)
-        sys.exit(1)
-    except jsonref.JsonRefError as e:
-        click.echo(e, err=True)
-        sys.exit(1)
 
 
 @cli.command()

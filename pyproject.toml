@@ -17,7 +17,6 @@ license-files = ["LICENSE*"]
 dependencies = [
   "click>=8.0.0",
   "requests>=2.28.1",
-  "compiletojsonschema",
   "json-merge-patch"
 ]
 
