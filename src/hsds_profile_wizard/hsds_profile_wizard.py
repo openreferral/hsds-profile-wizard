@@ -13,6 +13,11 @@ from contextlib import suppress
 
 from datetime import datetime
 
+# TODO
+# 1: simplify functions to make more functional
+# 2: type hinting!!
+# 3: completely refactor generate_profile_openapi_with_cleaned_refs to reduce complexity
+
 
 def get_profile_metadata():
     """
@@ -283,7 +288,9 @@ def fetch_hsds_schemas(branch):
         return schemas
 
 
-def generate_schema_id_from_schema_name_url_and_version(schema_name, base_url, version):
+def generate_schema_id_from_schema_name_url_and_version(
+    schema_name: str, base_url: str, version: str
+) -> str:
     """
     Generates a schema $id from the schema's filename, the Profile's base_url, and the version of the Profile. https://json-schema.org/draft/2020-12/json-schema-core#name-the-id-keyword
 
@@ -306,20 +313,43 @@ def generate_schema_id_from_schema_name_url_and_version(schema_name, base_url, v
     """
 
     # Can't guarantee that user has omitted a trailing / or not
-    base_url = base_url.strip("/")
+    # This also avoids mutations of the input
+    cleaned_base_url = base_url.strip("/")
 
-    if base_url.startswith("https://github.com"):
-        return f"{base_url.replace('https://github.com', 'https://raw.githubusercontent.com')}/{version}/schema/{schema_name}"
+    # Define the transformation rules as a series of tuples, so that we get a purely data-driven approach to transforming the original URLs
 
-    if base_url.startswith("https://gitlab.com"):
-        return f"{base_url}/-/raw/{version}/{schema_name}"
+    # Rules: (domain_prefix, replacement_prefix, path_template)
+    rules = [
+        (
+            "https://github.com",
+            "https://raw.githubusercontent.com",
+            "{base}/{version}/schema/{schema_name}",
+        ),
+        (
+            "https://gitlab.com",
+            "https://gitlab.com",
+            "{base}/-/raw/{version}/schema/{schema_name}",
+        ),
+        (
+            "https://codeberg.org",
+            "https://codeberg.org",
+            "{base}/raw/branch/{version}/schema/{schema_name}",
+        ),
+        (
+            "https://git.sr.ht",
+            "https://git.sr.ht",
+            "{base}/blob/{version}/schema/{schema_name}",
+        ),
+    ]
 
-    if base_url.startswith("https://git.sr.ht"):
-        return f"{base_url}/blob/{version}/schema/{schema_name}"
+    for prefix, replacement, template in rules:
+        if cleaned_base_url.startswith(prefix):
+            transformed_url = cleaned_base_url.replace(prefix, replacement)
+            return template.format(
+                base=transformed_url, version=version, schema_name=schema_name
+            )
 
-    if base_url.startswith("https://codeberg.org"):
-        return f"{base_url}/raw/branch/{version}/{schema_name}"
-
+    # Base case
     return f"{base_url}/{version}/schema/{schema_name}"
 
 
