@@ -9,6 +9,8 @@ import json_merge_patch
 
 from pathlib import Path
 
+from typing import Optional
+
 from contextlib import suppress
 
 from datetime import datetime
@@ -173,7 +175,7 @@ def has_cache_metadata_entry(metadata: dict, branch: str) -> bool:
 
 def is_cache_fresh(metadata: dict, branch: str) -> bool:
     """
-    Checks if timestamp is less than a day old
+    Checks if timestamp for branch is less than a day old
     """
 
     try:
@@ -191,8 +193,8 @@ def use_cached_schemas(branch: str) -> bool:
 
     return (
         has_cache_directory(branch)
-        and has_cache_directory(metadata, branch)
-        and is_cache_fresh(branch)
+        and has_cache_metadata_entry(metadata, branch)
+        and is_cache_fresh(metadata, branch)
     )
 
 
@@ -292,7 +294,7 @@ def generate_schema_id_from_schema_name_url_and_version(
 # FIXME
 def generate_profile_openapi_with_cleaned_refs(
     openapi_definition: dict, profile_schemas: dict
-):
+) -> dict:
     """
     Processes the openapi.json dict to replace all references to vanilla HSDS Schemas with URIs pointing to Profile schemas.
 
@@ -571,7 +573,7 @@ def init(title: str, url: str, description: str, docs_url: str):
     default=None,
     help="The version of the Profile you're generating. Provide this to override the `version` property inside of profile.json",
 )
-def generate(branch: str, url: str, version: str):
+def generate(branch: Optional[str], url: Optional[str], version: Optional[str]):
     """
     Generates Profile Schemas based on HSDS Schemas and the Patches in the `profile` directory.
     """
