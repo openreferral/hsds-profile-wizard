@@ -199,48 +199,50 @@ def get_cached_schema_dir_path_from_branch(branch):
     return f"{get_cache_directory_path_as_string()}/{branch}"
 
 
-def use_cached_schemas(branch):
+def has_cache_directory(branch: str) -> bool:
     """
-    Looks at the cache's metadata.json entry for the branch and decided whether to use the cached schemas or not based on the current time. If no entry is present, it defaults to returning False
+    Checks if a cache directory exist for this branch
 
-    Parameters:
-      * branch (str): the branch for which to check for cached schemas
-
-    Return:
-      bool: whether to use the cached schemas for that branch or not.
+    I/O: reads the file system to check if the path is a directory.
     """
+    return os.path.isdir(get_cached_schema_dir_path_from_branch(branch))
 
-    # If we don't have any cached files for this branch, we can't use the cache
-    if not os.path.isdir(get_cached_schema_dir_path_from_branch(branch)):
-        return False
+
+def has_cache_metadata_entry(metadata: dict, branch: str) -> bool:
+    """
+    Checks if a branch of the HSDS schemas has an entry in the cache metadata
+    """
+    return branch in metadata
+
+
+def is_cache_fresh(metadata: dict, branch: str) -> bool:
+    """
+    Checks if timestamp is less than a day old
+    """
 
     try:
-        cache_metadata = get_cache_metadata()
-
-        # If the branch isn't in the cache metadata, we can return early. This check might not be necessary because we've already checked for the branch's cache directory earlier, but it's worthwhile doing here to ensure that the metadata.json file is behaving properly.
-        if branch not in cache_metadata:
-            return False
-
-        try:
-            current_datetime = datetime.now()
-            cached_schemas_datetime = datetime.fromisoformat(cache_metadata[branch])
-
-            # Only use the cache if it's less than a day old. There's probably better heuristics than this out there, but this seems like an inoffensive place to start.
-            return (
-                True
-                if (current_datetime - cached_schemas_datetime).days <= 1
-                else False
-            )
-        except (ValueError, TypeError):
-            # Invalid date format in the metadata, so treat as an invalid cache and refresh it
-            return False
-
-    except (FileNotFoundError, PermissionError, OSError):
-        # These exceptions likely mean that there's no cache metadata file, or it's not usable for some reason. It's OK to say false not to use the cache here.
+        cached_time = datetime.fromisoformat(metadata[branch])
+        return (datetime.now() - cached_time).days <= 1
+    except (ValueError, TypeError):
         return False
 
 
-def fetch_schemas_from_directory(directory):
+def use_cached_schemas(branch: str) -> bool:
+    """
+    Determines whether to use the cache's metadata or not
+    """
+    metadata = get_cache_metadata()
+
+    return all(
+        [
+            has_cache_directory(branch),
+            has_cache_metadata_entry(metadata, branch),
+            is_cache_fresh(metadata, branch),
+        ]
+    )
+
+
+def fetch_schemas_from_directory(directory: str) -> dict:
     """
     Fetches Schemas from a local directory and returns a list of maps from filename to schemas. Only files ending with ".json" are fetched.
 
