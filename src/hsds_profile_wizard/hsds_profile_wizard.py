@@ -189,12 +189,10 @@ def use_cached_schemas(branch: str) -> bool:
     """
     metadata = get_cache_metadata()
 
-    return all(
-        [
-            has_cache_directory(branch),
-            has_cache_metadata_entry(metadata, branch),
-            is_cache_fresh(metadata, branch),
-        ]
+    return (
+        has_cache_directory(branch)
+        and has_cache_directory(metadata, branch)
+        and is_cache_fresh(branch)
     )
 
 
