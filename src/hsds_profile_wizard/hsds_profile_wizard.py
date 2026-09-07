@@ -9,55 +9,47 @@ import json_merge_patch
 
 from pathlib import Path
 
+from typing import Optional
+
 from contextlib import suppress
 
 from datetime import datetime
 
+# TODO
+# 1: simplify functions to make more functional and increase maintainability
+# 2: type hinting!!
+# 3: completely refactor generate_profile_openapi_with_cleaned_refs to reduce complexity
 
-def get_profile_metadata():
+
+def get_profile_metadata() -> dict:
     """
     Returns the profile.json file as a dict
-
-    Returns:
-      * dict: the profile.json object
     """
     with open("profile.json", "r") as profile_file:
         return json.load(profile_file)
 
 
-def get_openapi_url_from_base_url(base_url):
+def get_openapi_url_from_base_url(base_url: str) -> str:
     """
     Given a base_url for a profile, returns a URL which should resolve to that PRofile's openapi.json file if deployed
-
-    Parameters:
-      * base_url: string (uri), the base_url for the profile. Usually taken from profile.json.
-
-    Returns:
-      * string: a string representing the location of the Open API URL for the profile.
     """
     return f"{base_url}/schema/openapi.json"
 
 
-def get_cache_directory_path_as_string():
+def get_cache_directory_path_as_string() -> str:
     """
     This function encapsulates the string used for the cache directory's filepath, making it easier to maintain and reducing instances of hardcoded strings in the code.
-
-    Returns:
-      * string: the direcory of the cache
     """
 
     return ".hsds-profile-wizard"
 
 
-def get_default_hsds_schema_branch():
+def get_default_hsds_schema_branch() -> str:
     """
     Queries the Github API for the HSDS Repo's information, and returns the default branch as a string
 
     I/O:
       * Makes a http request to query the Github API for a default branch name.
-
-    Returns:
-      * string: the default branch of the HSDS repository e.g. "3.2"
     """
 
     url = "https://api.github.com/repos/openreferral/specification"
@@ -65,18 +57,12 @@ def get_default_hsds_schema_branch():
     return requests.get(url).json()["default_branch"]
 
 
-def fetch_schemas_from_github(branch):
+def fetch_schemas_from_github(branch: str) -> dict:
     """
-    Retrieves the HSDS schemas from Github and returns them as dicts
+    Retrieves the HSDS schemas from Github and returns them as dicts where the key is the filename and the value is a dict resulting from json.loads on the schema content.
 
     I/O:
       * makes http requests to github to retrieve HSDS schema files
-
-    Parameters:
-        branch (str): Which branch of the HSDS Schemas to use.
-
-    Returns:
-        dict of HSDS Schemas where the key is the filename and the value is a dict resulting from json.loads on the schema content.
     """
 
     url = f"https://api.github.com/repos/openreferral/specification/contents/schema?ref={branch}"
@@ -94,23 +80,17 @@ def fetch_schemas_from_github(branch):
     return schemas
 
 
-def get_cache_metadata_filepath():
+def get_cache_metadata_filepath() -> str:
     """
     Returns the location of the cache's metadata.json file as a string
-
-    Return:
-      * str: the filepath to the cache's metadata.json file
     """
 
     return f"{get_cache_directory_path_as_string()}/metadata.json"
 
 
-def get_cache_metadata():
+def get_cache_metadata() -> dict:
     """
     Returns the cache's metadata.json file as a dict
-
-    Returns:
-      * dict - resulting from json.loads on the metadata file
     """
 
     with open(get_cache_metadata_filepath(), "r") as cache_metadata_file:
@@ -122,12 +102,9 @@ def get_cache_metadata():
             )  # This error occurs when there's a fresh metadata.json file or not metadata.json file. This just means that there's an empty cache, or that the program thinks there's an empty cache. It's safe to return an empty dict here because that just means a fresh fetch of that branch of the HSDS schemas.
 
 
-def write_cache_metadata(metadata):
+def write_cache_metadata(metadata: dict):
     """
     Writes the cache metadata to the cache's metadata.json file
-
-    Parameters:
-      * metadata (dict): the dict representing the current cache's metadata
 
     I/O:
       * Writes the metadata dict to a JSON file stored in {cache_directory}/metadata.json
@@ -136,13 +113,9 @@ def write_cache_metadata(metadata):
         cache_metadata_file.write(json.dumps(metadata))
 
 
-def write_dict_of_schemas_to_directory(schemas, directory):
+def write_dict_of_schemas_to_directory(schemas: dict, directory: str):
     """
-    Writes the dict of schemas to directory. Uses the keys of schemas as filenames, with the values being written to the file.
-
-    Parameters:
-      * schemas (dict): a dict of schemas e.g. {'example.json': {…}}
-      * directory (str): the directory to write each schema
+    Writes the dict of schemas to directory. Uses the keys of schemas as filenames, with the values (dicts) being written to the file.
 
     I/O:
       * Writes to the disk using the value of directory
@@ -153,13 +126,9 @@ def write_dict_of_schemas_to_directory(schemas, directory):
             schema_file.write(json.dumps(v, indent=2))
 
 
-def cache_schemas(branch, schemas):
+def cache_schemas(branch: str, schemas: dict):
     """
     Stores copies of the schemas in a local cache organised by branch and updates the cache metadata.json with the timestamp this branch was updated.
-
-    Parameters:
-        branch (str): the branch of the repo
-        schemas (dict): a dict of filenames=>schemas to write to the cache
 
     I/O:
       * writes schemas to the cache directory via write_dict_of_schemas_to_directory()
@@ -180,75 +149,63 @@ def cache_schemas(branch, schemas):
     write_cache_metadata(cache_metadata)
 
 
-def get_cached_schema_dir_path_from_branch(branch):
+def get_cached_schema_dir_path_from_branch(branch: str) -> str:
     """
     Returns the path for the directory where the cached schemas are for the given branch
-
-    Parameters:
-      * branch (str): the branch name of the set of schemas to retrieve e.g. "3.2"
-
-    Return:
-        str: the path of the directory where the cached schemas would be for the given branch
     """
 
     return f"{get_cache_directory_path_as_string()}/{branch}"
 
 
-def use_cached_schemas(branch):
+def has_cache_directory(branch: str) -> bool:
     """
-    Looks at the cache's metadata.json entry for the branch and decided whether to use the cached schemas or not based on the current time. If no entry is present, it defaults to returning False
+    Checks if a cache directory exist for this branch
 
-    Parameters:
-      * branch (str): the branch for which to check for cached schemas
-
-    Return:
-      bool: whether to use the cached schemas for that branch or not.
+    I/O: reads the file system to check if the path is a directory.
     """
+    return os.path.isdir(get_cached_schema_dir_path_from_branch(branch))
 
-    # If we don't have any cached files for this branch, we can't use the cache
-    if not os.path.isdir(get_cached_schema_dir_path_from_branch(branch)):
-        return False
+
+def has_cache_metadata_entry(metadata: dict, branch: str) -> bool:
+    """
+    Checks if a branch of the HSDS schemas has an entry in the cache metadata
+    """
+    return branch in metadata
+
+
+def is_cache_fresh(metadata: dict, branch: str) -> bool:
+    """
+    Checks if timestamp for branch is less than a day old
+    """
 
     try:
-        cache_metadata = get_cache_metadata()
-
-        # If the branch isn't in the cache metadata, we can return early. This check might not be necessary because we've already checked for the branch's cache directory earlier, but it's worthwhile doing here to ensure that the metadata.json file is behaving properly.
-        if branch not in cache_metadata:
-            return False
-
-        try:
-            current_datetime = datetime.now()
-            cached_schemas_datetime = datetime.fromisoformat(cache_metadata[branch])
-
-            # Only use the cache if it's less than a day old. There's probably better heuristics than this out there, but this seems like an inoffensive place to start.
-            return (
-                True
-                if (current_datetime - cached_schemas_datetime).days <= 1
-                else False
-            )
-        except (ValueError, TypeError):
-            # Invalid date format in the metadata, so treat as an invalid cache and refresh it
-            return False
-
-    except (FileNotFoundError, PermissionError, OSError):
-        # These exceptions likely mean that there's no cache metadata file, or it's not usable for some reason. It's OK to say false not to use the cache here.
+        cached_time = datetime.fromisoformat(metadata[branch])
+        return (datetime.now() - cached_time).days <= 1
+    except (ValueError, TypeError, KeyError):
         return False
 
 
-def fetch_schemas_from_directory(directory):
+def use_cached_schemas(branch: str) -> bool:
+    """
+    Determines whether to use the cache's metadata or not
+    """
+    metadata = get_cache_metadata()
+
+    return (
+        has_cache_directory(branch)
+        and has_cache_metadata_entry(metadata, branch)
+        and is_cache_fresh(metadata, branch)
+    )
+
+
+def fetch_schemas_from_directory(directory: str) -> dict:
     """
     Fetches Schemas from a local directory and returns a list of maps from filename to schemas. Only files ending with ".json" are fetched.
 
     Ignores subdirectories, only returns files.
 
-    Parameters:
-      * directory (str): the directory to scan for JSON files
-
     I/O:
       * Reads files from the directory parameter
-
-    Returns:
-        * schemas (dict): dicts mapping filenames to schemas
     """
 
     schemas = {}
@@ -262,15 +219,9 @@ def fetch_schemas_from_directory(directory):
     return schemas
 
 
-def fetch_hsds_schemas(branch):
+def fetch_hsds_schemas(branch: str) -> dict:
     """
     Returns a dict mapping filenames to HSDS schemas. Makes a decision about whether to use the cache or fetch fresh schemas.
-
-    Parameters:
-      * branch (str): which branch of the HSDS schemas to fetch e.g. "3.2"
-
-    Return:
-        * schemas (dict): list of dicts mapping filenames to schemas loaded into memory as dicts
     """
 
     if use_cached_schemas(branch):
@@ -283,47 +234,67 @@ def fetch_hsds_schemas(branch):
         return schemas
 
 
-def generate_schema_id_from_schema_name_url_and_version(schema_name, base_url, version):
+def generate_schema_id_from_schema_name_url_and_version(
+    schema_name: str, base_url: str, version: str
+) -> str:
     """
     Generates a schema $id from the schema's filename, the Profile's base_url, and the version of the Profile. https://json-schema.org/draft/2020-12/json-schema-core#name-the-id-keyword
 
     For most values of base_url, the assumption is that the resulting Profile schemas will be stored at {base_url}/{version}/schema/{schema_name}.json e.g. if base_url is https://example.org and the version is 0.1, then the $id value for service.json would be https://example.org/0.1/schema/service.json
 
-    There are some notable exceptions to account for popular source control systems, which are treated differently to give $id values which can resolve to the actual files. List of source control systems handled:
+    Base URLs to repos on popular source control systems are treated differently to give $id values which can resolve to the actual files. List of source control systems handled:
 
-    https://github.com/user/repo -> https://raw.githubusercontent.com/{version}/schema/{schema_name}
-    https://gitlab.com/user/repo -> https://gitlab.com/user/repo/-/raw/{version}/schema/{schema_name}
-    https://git.sr.ht/~user/repo_name -> https://git.sr.ht/~user/repo/blob/{version}/schema/{schema_name}
-    https://codeberg.org/user/repo -> https://codeberg.org/user/repo/raw/branch/{version}/schema/{schema_name}
-
-    Parameters:
-      * schema_name (str): the name of the schema file e.g. "service.json"
-      * base_url (str): the base URL for the profile e.g. https://example.org
-      * version (str): the version string for the Profile e.g. 0.1, 2020-12, etc.
-
-    Returns:
-      * str: the $id string to a Profile schema based on the provided schema name, base url, and version
+    https://github.com
+    https://gitlab.com
+    https://git.sr.ht
+    https://codeberg.org
     """
 
     # Can't guarantee that user has omitted a trailing / or not
-    base_url = base_url.strip("/")
+    # This also avoids mutations of the input
+    cleaned_base_url = base_url.strip("/")
 
-    if base_url.startswith("https://github.com"):
-        return f"{base_url.replace('https://github.com', 'https://raw.githubusercontent.com')}/{version}/schema/{schema_name}"
+    # Define the transformation rules as a series of tuples, so that we get a purely data-driven approach to transforming the original URLs
 
-    if base_url.startswith("https://gitlab.com"):
-        return f"{base_url}/-/raw/{version}/{schema_name}"
+    # Rules: (domain_prefix, replacement_prefix, path_template)
+    rules = [
+        (
+            "https://github.com",
+            "https://raw.githubusercontent.com",
+            "{base}/{version}/schema/{schema_name}",
+        ),
+        (
+            "https://gitlab.com",
+            "https://gitlab.com",
+            "{base}/-/raw/{version}/schema/{schema_name}",
+        ),
+        (
+            "https://codeberg.org",
+            "https://codeberg.org",
+            "{base}/raw/branch/{version}/schema/{schema_name}",
+        ),
+        (
+            "https://git.sr.ht",
+            "https://git.sr.ht",
+            "{base}/blob/{version}/schema/{schema_name}",
+        ),
+    ]
 
-    if base_url.startswith("https://git.sr.ht"):
-        return f"{base_url}/blob/{version}/schema/{schema_name}"
+    for prefix, replacement, template in rules:
+        if cleaned_base_url.startswith(prefix):
+            transformed_url = cleaned_base_url.replace(prefix, replacement)
+            return template.format(
+                base=transformed_url, version=version, schema_name=schema_name
+            )
 
-    if base_url.startswith("https://codeberg.org"):
-        return f"{base_url}/raw/branch/{version}/{schema_name}"
-
+    # Base case
     return f"{base_url}/{version}/schema/{schema_name}"
 
 
-def generate_profile_openapi_with_cleaned_refs(openapi_definition, profile_schemas):
+# FIXME
+def generate_profile_openapi_with_cleaned_refs(
+    openapi_definition: dict, profile_schemas: dict
+) -> dict:
     """
     Processes the openapi.json dict to replace all references to vanilla HSDS Schemas with URIs pointing to Profile schemas.
 
@@ -417,8 +388,11 @@ def generate_profile_openapi_with_cleaned_refs(openapi_definition, profile_schem
 
 
 def generate_profile_schemas(
-    hsds_base_schemas, profile_source_schemas, base_url, profile_version
-):
+    hsds_base_schemas: dict,
+    profile_source_schemas: dict,
+    base_url: str,
+    profile_version: str,
+) -> dict:
     """
     Generates a dict of profile schemas which is the result of the following process:
 
@@ -426,15 +400,6 @@ def generate_profile_schemas(
     2. patching schemas which appear in both the hsds_base_schemas and the profile_source_schemas (Intersection) according to JSON Merge Patch
     3. Overriding the $id values of each resultant schema with a new one generated from base_url and profile_version along with the name of the schema
     4. Processing `openapi.json` to replace $refs to schemas with ones pointing to the Profile's $ids
-
-    Parameters:
-        * hsds_base_schemas (dict): mapping of schema filename to schema dict e.g. {'example.json': {}}
-        * profile_source_schemas (dict): mapping of schema filename to schema dict e.g. {'example.json': {}}
-        * base_url (string): the url used as the base url of the profile, used to set the $id properties of schemas
-        * profile_version: the version of the profile, used to set the $id properties of schemas
-
-    Returns:
-        * dict: mapping of schema filenames to schema dict e.g {'example.json': {…}}, representing all the schemas present in the profile, fully patched, with new $id values.
     """
 
     # Profiles in HSDS have the following abilities: https://docs.openreferral.org/en/latest/hsds/profiles.html
@@ -541,7 +506,7 @@ def cli():
     "--docs-url",
     help="The url for your documentation e.g. https://docs.example-profile.org",
 )
-def init(title, url, description, docs_url):
+def init(title: str, url: str, description: str, docs_url: str):
     """
     Initialise a new Profile
 
@@ -608,7 +573,7 @@ def init(title, url, description, docs_url):
     default=None,
     help="The version of the Profile you're generating. Provide this to override the `version` property inside of profile.json",
 )
-def generate(branch, url, version):
+def generate(branch: Optional[str], url: Optional[str], version: Optional[str]):
     """
     Generates Profile Schemas based on HSDS Schemas and the Patches in the `profile` directory.
     """
