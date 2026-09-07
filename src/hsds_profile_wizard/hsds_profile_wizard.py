@@ -380,7 +380,7 @@ def generate_profile_openapi_with_cleaned_refs(
             except KeyError as e:
                 # I don't like how this integrates click's printing framework tightly into the core logic of the program. I may revert this to use sys.stderr.write, or refactor it to raise the exception and push the error message to the I/O boundary of the program i.e. in the "generate" command.
                 click.echo(
-                    f"Error when generating openapi.json file: path {k} references schema {e} which does not appear in your Profile. Consider patching this path via profile/openapi.json",
+                    f"Warning: the openapi.json file references a schema which doesn't exist in the Profile. Path {k} references schema {e} which doesn not appear in your Profile. Either patch this path in profile/openapi.json to replace the $ref value, or re-add the referenced schema to the Profile.",
                     err=True,
                 )
 
